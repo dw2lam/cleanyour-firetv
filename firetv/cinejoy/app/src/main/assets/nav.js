@@ -60,29 +60,35 @@ if (!window.__cjNav) window.__cjNav = (function () {
     return !hit || hit === el || el.contains(hit) || hit.contains(el);
   }
 
+  // The page's targets, kept until the DOM gains or loses nodes. On a 1.5 GB TV querySelectorAll over the
+  // site's ~8000 nodes costs ~20 ms, and the hit test ~6 ms per element, so geometry is all that runs for every
+  // candidate; the costly checks run only on the few best-scored ones (usable, focus).
+  var all = null;
+  new MutationObserver(function () { all = null; }).observe(document.documentElement, { childList: true, subtree: true });
+
   function candidates() {
-    var W = innerWidth, H = innerHeight, all = document.querySelectorAll(SEL), list = [], set = new Set();
-    for (var i = 0; i < all.length; i++) {
-      var el = all[i], r = el.getBoundingClientRect();
-      if (r.width < 6 || r.height < 6 || unreachable.has(el)) continue;
+    var W = innerWidth, H = innerHeight, list = all || (all = document.querySelectorAll(SEL)), out = [];
+    for (var i = 0; i < list.length; i++) {
+      var el = list[i], r = el.getBoundingClientRect();
+      if (r.width < 6 || r.height < 6 || el === ring || unreachable.has(el)) continue;
       if (r.bottom < -1.5 * H || r.top > 2.5 * H || r.right < -1.5 * W || r.left > 2.5 * W) continue;
       // A clickable the size of the page (a hero banner's background link) is not a target; its buttons are.
       if (el.tagName !== 'IFRAME' && r.width * r.height > 0.35 * W * H) continue;
-      if (!shown(el) || (onScreen(r) && !hittable(el, r))) continue;
-      list.push({ el: el, r: r });
-      set.add(el);
+      out.push({ el: el, r: r });
     }
-    // A wrapper the size of a candidate inside it (a div around a link) goes; the inner one stays.
-    var drop = new Set();
-    for (var j = 0; j < list.length; j++) {
-      var c = list[j];
-      for (var a = c.el.parentElement, d = 0; a && d < 6; a = a.parentElement, d++) {
-        if (!set.has(a)) continue;
-        var ar = a.getBoundingClientRect();
-        if (Math.abs(ar.width - c.r.width) < 4 && Math.abs(ar.height - c.r.height) < 4) drop.add(a);
-      }
+    return out;
+  }
+
+  // The element to focus for candidate c, or null: hidden (itself or an ancestor) means none, and a wrapper the
+  // size of a target inside it (a div around a link) gives way to that inner target.
+  function usable(c) {
+    if (!shown(c.el)) return null;
+    var inner = c.el.querySelectorAll(SEL);
+    for (var i = 0; i < inner.length; i++) {
+      var r = inner[i].getBoundingClientRect();
+      if (Math.abs(r.width - c.r.width) < 4 && Math.abs(r.height - c.r.height) < 4 && shown(inner[i])) return inner[i];
     }
-    return list.filter(function (c) { return !drop.has(c.el); });
+    return c.el;
   }
 
   function gap(a1, a2, b1, b2) { return b2 < a1 ? a1 - b2 : (b1 > a2 ? b1 - a2 : 0); }
@@ -110,13 +116,15 @@ if (!window.__cjNav) window.__cjNav = (function () {
   }
 
   // Focuses el, scrolling it into view at once (smooth scrolling is costly on a TV and makes the ring lag).
-  // False, and el is skipped from now on, when it still is not on screen afterwards: moved off by a transform.
+  // False when it is covered, and false for good when it still is not on screen afterwards (moved off by a
+  // transform, like a carousel's inactive slides).
   function focus(el) {
     var r = el.getBoundingClientRect(), H = innerHeight;
     if (r.top < 0.15 * H || r.bottom > 0.9 * H) el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' });
     else if (r.left < 0 || r.right > innerWidth) el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' });
     r = el.getBoundingClientRect();
-    if (!onScreen(r) || !hittable(el, r)) { unreachable.add(el); return false; }
+    if (!onScreen(r)) { unreachable.add(el); return false; }   // for good: scrolling can't bring it in
+    if (!hittable(el, r)) return false;                          // for now: something covers it
     cur = el;
     makeRing();
     place();
@@ -130,15 +138,21 @@ if (!window.__cjNav) window.__cjNav = (function () {
   }
 
   // Where to start: a Play / Watch / Resume button on screen if there is one, else the nearest to (x, y).
+  // Returns true once something has the focus.
   function start(x, y) {
-    var list = candidates(), best = null, bestD = Infinity;
+    var list = candidates(), ranked = [];
     for (var i = 0; i < list.length; i++) {
       var c = list[i], on = onScreen(c.r);
-      if (on && /^\s*(play|watch|resume|continue)\b/i.test(c.el.textContent || c.el.getAttribute('aria-label') || '')) return c.el;
-      var d = Math.hypot(Math.max(c.r.left - x, 0, x - c.r.right), Math.max(c.r.top - y, 0, y - c.r.bottom)) + (on ? 0 : 1e5);
-      if (d < bestD) { bestD = d; best = c.el; }
+      var primary = on && /^\s*(play|watch|resume|continue)\b/i.test(c.el.textContent || c.el.getAttribute('aria-label') || '');
+      var d = Math.hypot(Math.max(c.r.left - x, 0, x - c.r.right), Math.max(c.r.top - y, 0, y - c.r.bottom));
+      ranked.push([(primary ? -1e6 : 0) + (on ? 0 : 1e5) + d, c]);
     }
-    return best;
+    ranked.sort(function (p, q) { return p[0] - q[0]; });
+    for (var k = 0; k < ranked.length && k < 8; k++) {
+      var el = usable(ranked[k][1]);
+      if (el && focus(el)) return true;
+    }
+    return false;
   }
 
   function live(el) { return el && el.isConnected && shown(el) && onScreen(el.getBoundingClientRect()); }
@@ -184,27 +198,23 @@ if (!window.__cjNav) window.__cjNav = (function () {
       var v = playerKeys();
       if (v) {
         if (dir === 'left' || dir === 'right') return seek(v, dir === 'left' ? -10 : 10);
-        var s = start(innerWidth / 2, innerHeight * 0.85);   // the player's controls sit at the bottom
-        if (s && focus(s)) return { act: 'moved' };
+        if (start(innerWidth / 2, innerHeight * 0.85)) return { act: 'moved' };   // its controls sit at the bottom
         return { act: 'reveal', osd: status(v) };
       }
       var from = cur;
-      if (!live(from)) {
-        var s0 = start(x, y);
-        if (s0 && focus(s0)) return { act: 'moved' };
-        return { act: 'none' };
-      }
+      if (!live(from)) return start(x, y) ? { act: 'moved' } : { act: 'none' };
       var b = back.get(from);
       if (b && b[dir] && live(b[dir]) && focus(b[dir])) return { act: 'moved' };
       var r = from.getBoundingClientRect(), list = candidates(), scored = [];
       for (var i = 0; i < list.length; i++) {
         if (list[i].el === from || from.contains(list[i].el)) continue;
         var sc = score(r, list[i].r, dir);
-        if (sc >= 0) scored.push([sc, list[i].el]);
+        if (sc >= 0) scored.push([sc, list[i]]);
       }
       scored.sort(function (a, c) { return a[0] - c[0]; });
-      for (var k = 0; k < scored.length && k < 6; k++) {
-        if (focus(scored[k][1])) { remember(from, scored[k][1], dir); return { act: 'moved' }; }
+      for (var k = 0; k < scored.length && k < 8; k++) {
+        var el = usable(scored[k][1]);
+        if (el && el !== from && focus(el)) { remember(from, el, dir); return { act: 'moved' }; }
       }
       if (bigVideo()) { cur = null; place(); return { act: 'moved' }; }   // off the controls: back to the player
       return { act: 'none' };
@@ -213,7 +223,7 @@ if (!window.__cjNav) window.__cjNav = (function () {
       visible = true;
       var v = playerKeys();
       if (v) return toggle(v);
-      if (!live(cur)) { var s = start(x, y); if (!s || !focus(s)) return { act: 'none' }; }
+      if (!live(cur) && !start(x, y)) return { act: 'none' };
       var r = cur.getBoundingClientRect();
       var l = Math.max(r.left, 0), t = Math.max(r.top, 0), rr = Math.min(r.right, innerWidth), bb = Math.min(r.bottom, innerHeight);
       return { act: 'tap', x: (l + rr) / 2, y: (t + bb) / 2, w: innerWidth };

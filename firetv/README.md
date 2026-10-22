@@ -62,10 +62,17 @@ redirects to other sites are blocked; the video players inside the page are not 
 
 - **Menu** switches between two ways to move (a label shows which; the choice is kept), **hold Menu** to reload:
   - **Select** (default): the arrows jump between the page's links and buttons with a lime focus ring, like a TV
-    app; OK opens. Rows and carousels scroll to follow.
+    app; OK opens. The first press starts on a Play button when there is one; Down then Up comes back to the same
+    tile; the focus clears on every new page.
   - **Cursor**: the arrows move a pointer (hold to speed up), OK taps where it is, pushing against an edge scrolls
-    what is under it. Use it for video player controls. Fullscreen video always uses the cursor.
-- **Back** goes back (or leaves fullscreen video, or closes the keyboard); **Rewind / Fast-forward** page up and down.
+    what is under it.
+- **Player** (a video filling the screen, in either mode's Select view): OK or Play/Pause pauses and plays,
+  Left/Right skip 10 s, Rewind/Fast-forward 30 s, Up/Down bring up the site's own controls and move between them
+  (Down past the last one returns to the player). A time readout shows each change. The screen stays on while a
+  video plays.
+- **Back** goes back (or leaves fullscreen video, or closes the keyboard).
+- On this TV a Select-mode key takes about 10-30 ms (`assets/nav.js` checks only the few best candidates in
+  full; scanning every link with a hit test took ~180 ms).
 
 ## Everyday things
 

@@ -19,7 +19,6 @@ import android.util.DisplayMetrics;
 import android.view.Choreographer;
 import android.view.Gravity;
 import android.view.InputDevice;
-import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
@@ -181,7 +180,7 @@ public class MainActivity extends Activity {
         osd.setTextSize(20);
         FrameLayout.LayoutParams osdLp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
-        osdLp.bottomMargin = (int) (40 * dm.density);
+        osdLp.bottomMargin = (int) (120 * dm.density);   // above the site's own control bar
         root.addView(osd, osdLp);
         prefs = getSharedPreferences("kiosk", MODE_PRIVATE);
         selectMode = prefs.getBoolean("select_mode", true);
@@ -216,6 +215,9 @@ public class MainActivity extends Activity {
         web.setOverScrollMode(View.OVER_SCROLL_NEVER);
         web.setFocusable(true);
         web.setFocusableInTouchMode(true);
+
+        // Low memory (1.5 GB TVs): let Android kill other things before this renderer while the app is in front.
+        web.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, true);
 
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
@@ -435,9 +437,9 @@ public class MainActivity extends Activity {
             case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
             case KeyEvent.KEYCODE_MEDIA_PLAY:
             case KeyEvent.KEYCODE_MEDIA_PAUSE:
-                if (first) callNav("media('toggle')", r -> {
-                    if (!showResult(r)) sendKey(KeyEvent.KEYCODE_SPACE);
-                });
+                // No Space-key fallback: Space presses whatever button has the page's focus, which re-opened
+                // the title that was just played.
+                if (first) callNav("media('toggle')", this::showResult);
                 return true;
             case KeyEvent.KEYCODE_MEDIA_REWIND:
             case KeyEvent.KEYCODE_CHANNEL_UP:
@@ -671,20 +673,6 @@ public class MainActivity extends Activity {
         } else {
             finish();
         }
-    }
-
-    /** Where synthetic keys go: the fullscreen video view while it is up, else the WebView. */
-    private View target() {
-        return customView != null ? customView : web;
-    }
-
-    private void sendKey(int keyCode) {
-        long t = SystemClock.uptimeMillis();
-        View v = target();
-        v.dispatchKeyEvent(new KeyEvent(t, t, KeyEvent.ACTION_DOWN, keyCode, 0, 0,
-                KeyCharacterMap.VIRTUAL_KEYBOARD, 0, 0, InputDevice.SOURCE_KEYBOARD));
-        v.dispatchKeyEvent(new KeyEvent(t, t, KeyEvent.ACTION_UP, keyCode, 0, 0,
-                KeyCharacterMap.VIRTUAL_KEYBOARD, 0, 0, InputDevice.SOURCE_KEYBOARD));
     }
 
     // ---------------------------------------------------------------------------------------------
