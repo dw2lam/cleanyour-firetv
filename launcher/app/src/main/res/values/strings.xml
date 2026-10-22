@@ -1,6 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Home</string>
+    <!-- The app's own label, untranslated. On Fire OS HomeRedirectService finds the launcher's tile on Amazon's home by
+         this label, so it must never read "Home" (Amazon's Home tab) in any language. -->
+    <string name="launcher_label" translatable="false">My Home</string>
+    <string name="home_redirect_label" translatable="false">My Home redirect</string>
+    <string name="home_redirect_description" translatable="false">Opens this launcher when the Home button is pressed.</string>
+    <string name="use_amazon_home" translatable="false">Use Amazon Home Screen</string>
+    <string name="use_this_home" translatable="false">Use This Home Screen</string>
+    <string name="redirect_needs_permission" translatable="false">Needs a one-time setup from a computer.</string>
+    <string name="airplay_title" translatable="false">AirPlay</string>
+    <string name="airplay_ready" translatable="false">Ready as “%1$s”. On an iPhone, iPad or Mac, open Control Center and choose Screen Mirroring, or tap AirPlay in an app, then pick %1$s.</string>
+    <string name="airplay_settings_hint" translatable="false">Its name, passcode and HomeKit options are in Settings: search for AirPlay.</string>
+    <string name="airplay_settings" translatable="false">Settings</string>
+    <string name="airplay_done" translatable="false">Done</string>
     <string name="inputs">Inputs</string>
     <string name="wifi">Wi-Fi</string>
     <string name="settings">Settings</string>

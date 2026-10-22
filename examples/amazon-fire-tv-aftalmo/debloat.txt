@@ -1,0 +1,155 @@
+# Amazon Fire TV smart TV (AFTALMO, codename almond, Amlogic/droidlogic), Fire OS 7.7.1.5 (PS7715/5585), Android 9
+# (SDK 28), 1.5 GB RAM, 1080p, HDMI 1-3 + AV + antenna tuner. US. Device name "David's TV".
+# Starts from andrewsaad/fire-tv-cleanup's AFTALMO list (same model and build), checked package by package with
+# `dumpsys package` and `aapt2 dump badging` on this TV, then cut to this owner's answers:
+#   uses Netflix, Prime Video, YouTube, Spotify and Downloader; keeps AirPlay and firmware updates; no Alexa, no Luna,
+#   no phone casting or Miracast, no antenna, no Silk, no Amazon Music/Photos; blocks the forced-update nag.
+#
+# FIRE OS: com.amazon.tv.launcher and com.amazon.firehomestarter are protected and keep Home. launcher/ is installed
+# alongside with its Home redirect (accessibility) instead of replacing them.
+#
+# Apply:   TV_HOST=<tv ip> tools/disable.sh examples/amazon-fire-tv-aftalmo/debloat.txt
+# Undo:    TV_HOST=<tv ip> tools/restore.sh examples/amazon-fire-tv-aftalmo/debloat.txt com.amazon.tv.launcher
+# Everything is DISABLED for user 0, never uninstalled. Comment out any line you want to keep.
+#
+# Not listed, protected on this build per the source list ("Cannot disable a protected package"):
+# com.amazon.ftvads.deeplinking, com.amazon.client.metrics, com.amazon.device.metrics, com.amazon.device.crashmanager,
+# com.amazon.diode, com.fireos.usagestats.proxy, com.fireos.arcus.proxy, com.amazon.tv.csapp, com.amazon.adep,
+# com.amazon.tv.parentalcontrols, com.amazon.securitysyncclient, and the OTA service itself (com.amazon.device.software.ota).
+# com.amazon.vizzini (Alexa voice) is listed in batch 6, but Fire OS re-enables it at every boot; re-run the list after one.
+#
+# Kept on purpose: com.amazon.tv.launcher, firehomestarter, settings (tv.settings.*, quicksettings*), com.amazon.tv.livetv
+# and every droidlogic/devicecontrol/inputpreference package (HDMI, AV, CEC), com.amazon.tv.ime, remote and Bluetooth
+# (fireinputdevices, uxcontrollerservice, autopairservice, bluetoothpa, blepa), Wi-Fi, account and sign-in
+# (dcp, imp, sync.provider.ipc, tv.ottssocompanionapp), Appstore (venezia, tigris), Prime Video (com.amazon.firebat and
+# com.amazon.tv.support, which holds its purchase and subscription screens),
+# Downloader (com.esaba.downloader), AirPlay (com.apple.airplay.amazon.airplay), OTA updates, com.amazon.tv.oobe,
+# com.amazon.logan (accessibility/TTS control panel, also hosts a connect-to-network screen), providers.contentsupport.
+# Looked at and left alone, role unclear or nothing to gain: com.amazon.ale and com.amazon.recess (no components),
+# com.fireos.sdk.ftve.addp, com.amazon.device.details, com.amazon.tv.consents, com.amazon.ftv.xpicker (has a
+# HomeActivity), com.amazon.prism.android.service (profiles, account events), com.amazon.cpl, com.amazon.ssm,
+# com.amazon.tcomm (Amazon's device messaging channel).
+# Already disabled before this list: com.android.nfc.
+
+# --- batch 1: ads, shopping, promos, preloads this owner does not use
+com.amazon.kso.blackbird          # sponsored screensaver and lock-screen ads
+com.amazon.sneakpeek              # ad previews
+com.amazon.hybridadidservice      # advertising ID
+com.amazon.shoptv.client          # shopping upsell
+com.amazon.shoptv.firetv.client   # shopping upsell (has an app tile)
+com.amazon.tv.democontent.provider  # retail demo content
+com.amazon.media.recommendations  # home-row recommendations
+com.amazon.naatyam                # Naatyam: promo/policy service
+com.amazon.minitv.android.app     # miniTV stub
+com.amazon.tv.localgallery        # local gallery
+com.amazon.tahoe                  # Amazon Kids (FreeTime)
+com.amazon.bueller.music          # Amazon Music
+com.amazon.bueller.photos         # Amazon Photos
+com.amazon.cloud9                 # Silk browser
+com.amazon.tv.website_launcher    # Silk website shortcuts
+
+# --- batch 2: telemetry, logging, remote config
+com.amazon.tv.acr                 # automatic content recognition (viewing data)
+com.amazon.wirelessmetrics.service
+com.amazon.tv.fw.metrics
+com.amazon.client.metrics.api
+com.amazon.dp.logger
+com.amazon.perfc
+com.amazon.perfcollection
+com.amazon.livedeviceservice
+com.amazon.device_remote_config_sync_service
+com.amazon.alta.h2clientservice
+com.amazon.neodelegate
+com.amazon.neopactservice
+com.amazon.privacypassservice
+com.amazon.audiolatencymeasurer
+com.amazon.aca                    # ACAFireTVAndroidClient: app recency / locker sync
+com.amazon.csm.htmlruntime
+com.amazon.ceviche                # metrics/remote-config pipeline
+com.amazon.tv.developer.dataservice  # ad personalisation data service
+com.amazon.dpcclient              # weblab / settings sync
+com.amazon.uxnotification
+com.amazon.systemnotices
+com.amazon.tv.notificationcenter
+com.amazon.sharingservice.android.client.proxy
+com.amazon.wifilocker             # saves Wi-Fi passwords to the Amazon account
+
+# --- batch 3: Alexa side services, phone casting, Miracast, Matter (AirPlay stays)
+com.amazon.alexa.datastore.app
+com.amazon.alexamediaplayer.runtime.ftv
+com.amazon.alexadirectivebrokerservice
+com.amazon.alexa.externalmediaplayer.fireos
+com.amazon.tv.alexaalerts
+com.amazon.tv.alexanotifications
+com.amazon.spotify.mediabrowserservice
+com.amazon.wha.mediabrowserservice
+com.amazon.audiohome
+com.amazon.vizzini.ftvcds         # Alexa content data service
+com.amazon.aria                   # Alexa visual responses
+com.amazon.aiondec                # Alexa on-device
+com.amazon.tv.fss                 # Alexa provider registration
+com.amazon.tv.routing             # Alexa routing
+com.amazon.ftv.profilepicker      # Alexa profile picker
+com.amazon.cardinal               # Alexa Video Player
+com.amazon.rtcsessioncontroller   # Alexa calling (RTC)
+com.ivona.orchestrator            # Alexa/VoiceView TTS
+com.ivona.tts.oem
+com.amazon.dialservice            # DIAL: Netflix/YouTube cast button on phones
+com.amazon.awvflingreceiver
+com.amazon.cast.sink              # Miracast
+com.amazon.whisperplay.contracts
+com.amazon.whisperplay.service.install
+com.amazon.communication.discovery
+com.amazon.tcomm.jackson
+com.amazon.tv.mattercohost
+com.amazon.tv.matter
+
+# --- batch 4: setup, legal, tutorials, channel scan, update nag, unused Android extras
+com.amazon.tv.legalresources
+com.amazon.tv.legal.notices
+com.amazon.tv.legal.notices.overlay.localisation.common
+com.amazon.tv.releasenotes
+com.amazon.tv.ooberesource
+com.amazon.tv.easyupgrade         # Easy Upgrade promo
+com.amazon.tv.forcedotaupdater.v2 # forced-update nag (the OTA service itself stays)
+com.amazon.tmm.tutorial
+com.amazon.storm.lightning.tutorial
+com.amazon.ods.kindleconnect
+com.amazon.tv.ffsprovisioneeclient  # frustration-free setup client
+com.amazon.tv.channelscan         # antenna channel scan (no antenna)
+# com.amazon.android.tv.scan      # kept: asks for TV_INPUT_HARDWARE, so tools/disable.sh's input guard skips it
+com.amazon.tv.resolutioncycler
+com.amazon.connectivitydiag
+com.amazon.dummy.settings
+com.amazon.dummy.contacts
+com.amazon.dummy.calendar
+com.amazon.dummy.gallery
+com.amazon.dummy.music
+com.amazon.dummy.alarmclock
+com.android.htmlviewer
+com.android.printspooler
+com.android.bips
+com.android.traceur
+com.android.backupconfirm
+com.android.sharedstoragebackup
+com.android.wallpaperbackup
+com.android.wallpapercropper
+com.android.simappdialog
+com.android.onetimeinitializer
+com.android.bluetoothmidiservice
+com.android.managedprovisioning
+com.android.se
+com.svox.pico
+
+# --- batch 6: second pass (owner: "disable everything else the TV doesn't need", no Luna)
+com.amazon.spiderpork             # Amazon Luna (app label "Amazon Luna"; the source list calls it a tutorial)
+com.amazon.fireos.cirruscloud     # Luna cloud gaming
+com.amazon.gamehub                # Fire TV games hub
+# com.amazon.device.rdmapplication  # remote battery level reporting - PROTECTED on this build (2026-10-21)
+com.amazon.tv.ottssocompanionapp  # "Sign in with Amazon" for third-party apps
+com.amazon.whisperjoin.middleware.np  # Wi-Fi provisioning for other Amazon devices, credential sync
+# com.amazon.whisperlink.core.android   # Whisperlink casting/discovery core (AirPlay is separate and stays) - PROTECTED on this build (2026-10-21)
+com.amazon.vizzini                # Alexa voice; Fire OS re-enables it at every boot
+
+# --- batch 5 (after the launcher's Clock screensaver is set): Amazon's screensaver
+com.amazon.ftv.screensaver

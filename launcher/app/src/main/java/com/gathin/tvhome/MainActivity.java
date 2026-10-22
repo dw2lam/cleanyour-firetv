@@ -2254,7 +2254,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     /** Hides the Inputs pill when it would have nothing to list: streaming boxes have no HDMI-in, AV or tuner. */
     private void updateInputsButton() {
-        if (!showInputsPill) {
+        // Fire OS TVs do have inputs, but switching them is Amazon-only: the passthrough URI opens Live TV's settings
+        // (its input player needs com.amazon.tv.permission.TUNE_INPUT), and Amazon's Inputs tab ignores accessibility
+        // clicks. The remote's Input button still works, so the pill would only lead nowhere.
+        if (!showInputsPill || HomeRedirectService.isFireOs(this)) {
             btnInputs.setVisibility(View.GONE);
             return;
         }
@@ -2623,6 +2626,15 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (moduleCards) addSettingsMenuRow(rows, popup, R.string.module_cards, this::showModuleCards);
         if (dockRow) addSettingsMenuRow(rows, popup, R.string.dock_edit, this::startDockEdit);
         addSettingsMenuRow(rows, popup, R.string.reorder, this::toggleReorder);
+        if (HomeRedirectService.isFireOs(this)) {
+            // Fire OS keeps Amazon's home; this switches the redirect that brings the launcher up over it.
+            boolean on = HomeRedirectService.isEnabled(this);
+            addSettingsMenuRow(rows, popup, on ? R.string.use_amazon_home : R.string.use_this_home, () -> {
+                if (!HomeRedirectService.setEnabled(this, !on)) {
+                    Toast.makeText(this, R.string.redirect_needs_permission, Toast.LENGTH_LONG).show();
+                }
+            });
+        }
         panel.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
         popup.setWidth(Math.max((int) (200 * density), panel.getMeasuredWidth()));
         // Hebrew puts Settings at the left of the header: grow the menu inward from it.
@@ -2732,6 +2744,58 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         cardPrompt = dialog;
         dialog.show();
         keep.requestFocus();
+    }
+
+    // ---- AirPlay on Fire OS ------------------------------------------------------------------------
+
+    private static final String FIRE_AIRPLAY = "com.apple.airplay.amazon.airplay";
+
+    @Override
+    public boolean onTileLaunchRefused(String pkg) {
+        if (!FIRE_AIRPLAY.equals(pkg)) return false;
+        showAirPlayInfo();
+        return true;
+    }
+
+    /**
+     * Fire OS's AirPlay receiver only opens for apps holding com.amazon.airplay.permission.LAUNCH (signature), but it
+     * needs no screen to work: casting from an Apple device takes over the TV by itself. So its tile says how to cast,
+     * and offers the TV's Settings, where its name, passcode and HomeKit options live.
+     */
+    private void showAirPlayInfo() {
+        View panel = getLayoutInflater().inflate(R.layout.dialog_airplay, root, false);
+        String name = Settings.Global.getString(getContentResolver(), Settings.Global.DEVICE_NAME);
+        if (name == null || name.isEmpty()) name = Build.MODEL;
+        ((TextView) panel.findViewById(R.id.body)).setText(getString(R.string.airplay_ready, name));
+        TextView settings = panel.findViewById(R.id.btnSettings);
+        TextView done = panel.findViewById(R.id.btnDone);
+
+        final Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        dialog.setContentView(panel);
+        Window w = dialog.getWindow();
+        if (w != null) {
+            w.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            w.setLayout((int) (460 * density), ViewGroup.LayoutParams.WRAP_CONTENT);
+            w.setDimAmount(0.6f);
+        }
+        settings.setOnClickListener(v -> {
+            dialog.dismiss();
+            open(systemIntent(Settings.ACTION_SETTINGS));
+        });
+        done.setOnClickListener(v -> dialog.dismiss());
+        dialog.setOnDismissListener(d -> restoreFocus());
+        // Left and Right move between the two buttons; Up and Down stay put; the ends don't wrap.
+        View.OnKeyListener keys = (v, keyCode, event) -> {
+            if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
+            if (keyCode == KeyEvent.KEYCODE_DPAD_UP || keyCode == KeyEvent.KEYCODE_DPAD_DOWN) return true;
+            if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) return v.getId() == R.id.btnSettings;
+            return keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && v.getId() == R.id.btnDone;
+        };
+        settings.setOnKeyListener(keys);
+        done.setOnKeyListener(keys);
+        dialog.show();
+        done.requestFocus();
     }
 
     /** Writes the owner's decision and rebuilds the tiles; focus is left where it is. */

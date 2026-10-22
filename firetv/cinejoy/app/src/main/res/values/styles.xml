@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg">#FF050505</color>
+    <color name="lime">#FF95FF50</color>
+
+    <!-- Black from the very first frame (the starting window uses windowBackground), no action bar.
+         Full screen comes from immersive system-UI flags set in code, not windowFullscreen, so the
+         keyboard is still reported as a window inset. -->
+    <style name="Theme.Cinejoy" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/bg</item>
+        <item name="android:colorBackground">@color/bg</item>
+        <item name="android:colorAccent">@color/lime</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:statusBarColor">@color/bg</item>
+        <item name="android:navigationBarColor">@color/bg</item>
+    </style>
+</resources>

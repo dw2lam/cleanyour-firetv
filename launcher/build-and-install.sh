@@ -42,6 +42,36 @@ export ANDROID_HOME="${ANDROID_HOME:-/opt/homebrew/share/android-commandlinetool
 export PATH="$JAVA_HOME/bin:$PATH"
 [ -f local.properties ] || echo "sdk.dir=$ANDROID_HOME" > local.properties
 ./gradlew assembleRelease -q --console=plain
+# Fire OS keeps Home for Amazon's launcher: com.amazon.tv.launcher is a protected package and set-home-activity
+# prints Success but is ignored, so nothing below this block applies there. Instead the launcher is installed beside
+# it and its HomeRedirectService (an accessibility service) brings it up whenever Amazon's home screen appears.
+# REDIRECT_HOME=1 forces this path, REDIRECT_HOME=0 skips it; by default it follows the TV's amazon.hardware.fire_tv.
+if [ -z "${REDIRECT_HOME:-}" ]; then
+  REDIRECT_HOME=$("$PY" -I ../tools/tv.py 'pm list features' 2>/dev/null | grep -c 'amazon.hardware.fire_tv' || true)
+fi
+if [ "${REDIRECT_HOME:-0}" != 0 ]; then
+  echo "Fire OS: installing beside Amazon's launcher with the Home redirect (nothing is disabled)."
+  "$PY" -I ../tools/b64push.py app/build/outputs/apk/release/app-release.apk /data/local/tmp/tvhome.apk
+  OUT=$("$PY" -I ../tools/tv.py 'pm install -r /data/local/tmp/tvhome.apk; rm -f /data/local/tmp/tvhome.apk')
+  echo "$OUT"
+  case "$OUT" in *Success*) ;; *) echo "ERROR: pm install failed; nothing else was changed." >&2; exit 1 ;; esac
+  # One command per line: chained pm commands can stop after the first on some firmware. The accessibility list is
+  # edited in place so other services stay on; Android drops the service at every reinstall, hence each run.
+  # Amazon's screensaver carries sponsored content, so the launcher's Clock takes over.
+  printf '%s\n' \
+    "pm grant com.gathin.tvhome android.permission.ACCESS_FINE_LOCATION 2>/dev/null; echo location-granted" \
+    "pm grant com.gathin.tvhome android.permission.WRITE_SECURE_SETTINGS" \
+    "cmd package compile -m speed -f com.gathin.tvhome" \
+    "s=\$(settings get secure enabled_accessibility_services); case \"\$s\" in *HomeRedirectService*) ;; null|'') settings put secure enabled_accessibility_services com.gathin.tvhome/.HomeRedirectService ;; *) settings put secure enabled_accessibility_services \"\$s:com.gathin.tvhome/.HomeRedirectService\" ;; esac; settings put secure accessibility_enabled 1; echo redirect-enabled" \
+    "settings put secure screensaver_components com.gathin.tvhome/.ClockDream" \
+    "settings put secure screensaver_default_component com.gathin.tvhome/.ClockDream" \
+    "am start -W -n com.gathin.tvhome/.MainActivity" \
+    | "$PY" -I ../tools/tv.py --batch
+  echo "Installed. One-time step on the TV: Amazon home > Apps (the grid icon) > highlight My Home > Menu > Move to front,"
+  echo "so the redirect can open it from Amazon's apps row in well under a second after Home."
+  echo "Turn the redirect off: hold OK on the Settings pill > Use Amazon Home Screen."
+  exit 0
+fi
 # Which app owns Home differs by build (com.google.android.tvlauncher on Android TV,
 # com.google.android.apps.tv.launcherx on newer Google TV), so ask the TV instead of guessing.
 # Only a launcher we recognise is accepted: the answer can also be Android's chooser ("android"),

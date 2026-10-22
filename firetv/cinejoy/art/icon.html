@@ -1,0 +1,40 @@
+<!doctype html>
+<!-- Launcher icon: the mascot alone on a dark rounded tile. Rendered natively at every mipmap size
+     (48/72/96/144/192): open as icon.html?s=<px>; every length is a multiple of --u = s/100 px (not vw, because
+     headless Chrome clamps tiny windows to a larger minimum viewport). Transparent page; see ./render.sh. -->
+<html>
+<head>
+<meta charset="utf-8">
+<script>
+  var s = Number(new URLSearchParams(location.search).get("s")) || 192;
+  document.documentElement.style.setProperty("--u", (s / 100) + "px");
+</script>
+<style>
+  html, body { margin: 0; background: transparent; overflow: hidden; }
+  body { position: relative; width: calc(100 * var(--u)); height: calc(100 * var(--u)); }
+  .tile {
+    position: absolute; inset: calc(1.5 * var(--u)); border-radius: calc(23 * var(--u)); overflow: hidden;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0) 40%),
+      radial-gradient(110% 110% at 50% 35%, #101010 0%, #0a0a0a 55%, #050505 100%);
+    box-shadow: inset 0 0 0 calc(0.6 * var(--u)) rgba(255,255,255,0.06);
+  }
+  .glow {
+    position: absolute; left: 50%; top: 56%; width: calc(120 * var(--u)); height: calc(110 * var(--u)); transform: translate(-50%, -50%);
+    background:
+      radial-gradient(closest-side, rgba(149,255,80,0.32) 0%, rgba(149,255,80,0.12) 34%, rgba(149,255,80,0) 58%),
+      radial-gradient(closest-side, rgba(149,255,80,0.14) 0%, rgba(149,255,80,0.05) 60%, rgba(149,255,80,0) 100%);
+  }
+  .mascot {
+    position: absolute; left: 50%; top: 51%; height: calc(60 * var(--u)); width: auto; transform: translate(-50%, -50%);
+    filter: drop-shadow(0 calc(1 * var(--u)) calc(2.5 * var(--u)) rgba(0,0,0,0.5));
+  }
+</style>
+</head>
+<body>
+  <div class="tile">
+    <div class="glow"></div>
+    <img class="mascot" src="mascot.svg" alt="">
+  </div>
+</body>
+</html>

@@ -1,0 +1,22 @@
+<!doctype html>
+<!-- My Home banner (320x180 dp). Render: headless Chrome at 640x360, see art/render.sh. -->
+<html><head><meta charset="utf-8"><style>
+@font-face { font-family: Outfit; src: url(../app/src/main/res/font/outfit.ttf); font-weight: 100 900; }
+html, body { margin: 0; width: 640px; height: 360px; overflow: hidden; background: #000; }
+.tile { position: relative; width: 640px; height: 360px;
+  background:
+    radial-gradient(60% 85% at 38% 62%, rgba(18,92,116,.85) 0%, rgba(8,44,58,.55) 42%, rgba(0,0,0,0) 78%),
+    linear-gradient(180deg, #050a0c 0%, #000 100%); }
+.tile::after { content: ""; position: absolute; inset: 0; border-radius: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,.07) 0%, rgba(255,255,255,0) 38%); }
+.mark { position: absolute; left: 0; right: 0; top: 0; bottom: 0; display: flex; align-items: center; justify-content: center; gap: 30px; }
+svg { width: 112px; height: 112px; filter: drop-shadow(0 0 18px rgba(120,220,255,.25)); }
+.word { font-family: Outfit; font-weight: 300; font-size: 104px; letter-spacing: -1px; color: #fff; line-height: 1;
+  text-shadow: 0 0 24px rgba(120,220,255,.18); transform: translateY(-4px); }
+</style></head><body><div class="tile"><div class="mark">
+<svg viewBox="0 0 100 100" fill="none" stroke="#fff" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M10 46 L50 12 L90 46"/>
+  <path d="M21 38 V82 a6 6 0 0 0 6 6 H73 a6 6 0 0 0 6 -6 V38"/>
+  <path d="M41 88 V64 a5 5 0 0 1 5 -5 H54 a5 5 0 0 1 5 5 V88"/>
+</svg>
+<div class="word">Home</div></div></div></body></html>

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The AirPlay glyph: a rounded screen whose bottom edge opens around a triangle rising into it. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="100"
+    android:viewportHeight="100">
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="7"
+        android:strokeLineJoin="round"
+        android:pathData="M35,68 H19 A8,8 0 0 1 11,60 V22 A8,8 0 0 1 19,14 H81 A8,8 0 0 1 89,22 V60 A8,8 0 0 1 81,68 H65" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="5"
+        android:strokeLineJoin="round"
+        android:pathData="M50,53 L70,85 H30 Z" />
+</vector>

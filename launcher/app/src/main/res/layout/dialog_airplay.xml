@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fire OS AirPlay tile (MainActivity.showAirPlayInfo): how to cast to the TV, and a way to its Settings.
+     Done is focused first; Back closes it too. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/glass_panel"
+    android:paddingStart="26dp"
+    android:paddingEnd="26dp"
+    android:paddingTop="22dp"
+    android:paddingBottom="20dp"
+    android:elevation="12dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <ImageView
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:src="@drawable/ic_airplay"
+            android:importantForAccessibility="no" />
+
+        <TextView
+            android:id="@+id/title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:singleLine="true"
+            android:text="@string/airplay_title"
+            android:textColor="#FFFFFFFF"
+            android:textSize="22sp"
+            android:fontFamily="@font/outfit_medium"
+            android:letterSpacing="-0.01" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/body"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:textColor="#D9FFFFFF"
+        android:textSize="15sp"
+        android:lineSpacingExtra="3sp"
+        android:fontFamily="@font/outfit" />
+
+    <TextView
+        android:id="@+id/hint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/airplay_settings_hint"
+        android:textColor="#99FFFFFF"
+        android:textSize="13sp"
+        android:fontFamily="@font/outfit" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="18dp"
+        android:orientation="horizontal"
+        android:gravity="end">
+
+        <TextView
+            android:id="@+id/btnSettings"
+            style="@style/TopButton"
+            android:text="@string/airplay_settings"
+            android:nextFocusUp="@+id/btnSettings"
+            android:nextFocusDown="@+id/btnSettings"
+            android:nextFocusLeft="@+id/btnSettings"
+            android:nextFocusRight="@+id/btnDone" />
+
+        <TextView
+            android:id="@+id/btnDone"
+            style="@style/TopButton"
+            android:text="@string/airplay_done"
+            android:nextFocusUp="@+id/btnDone"
+            android:nextFocusDown="@+id/btnDone"
+            android:nextFocusLeft="@+id/btnSettings"
+            android:nextFocusRight="@+id/btnDone" />
+    </LinearLayout>
+</LinearLayout>

@@ -57,6 +57,10 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         void onLibraryRequested();
         void onLibraryFocused();
         void onLibraryUp();
+
+        /** The tile's app refused to open: its launcher activity needs a permission only the TV's own apps hold (Fire OS
+         *  AirPlay). Return true when something was shown instead of the can't-open toast. */
+        boolean onTileLaunchRefused(String pkg);
     }
 
     static final class Entry {
@@ -476,6 +480,10 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             if (cinematic) LastOpened.record(ctx, e.pkg);
             if (advancedEffects && !reducedMotion && ctx instanceof Activity) {
                 ((Activity) ctx).overridePendingTransition(R.anim.app_open_enter, R.anim.app_open_exit);
+            }
+        } catch (SecurityException ex) {
+            if (!listener.onTileLaunchRefused(e.pkg)) {
+                Toast.makeText(ctx, ctx.getString(R.string.cant_open, e.label), Toast.LENGTH_SHORT).show();
             }
         } catch (Exception ex) {
             Toast.makeText(ctx, ctx.getString(R.string.cant_open, e.label), Toast.LENGTH_SHORT).show();
