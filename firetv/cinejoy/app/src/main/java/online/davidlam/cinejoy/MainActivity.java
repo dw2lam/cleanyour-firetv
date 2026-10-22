@@ -44,6 +44,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
+import java.util.function.Consumer;
+
+import org.json.JSONException;
+import org.json.JSONObject;
 
 /**
  * Kiosk browser for cinejoy.pk on a Fire TV: one full-screen WebView, a D-pad driven mouse cursor, and a
@@ -74,6 +78,9 @@ public class MainActivity extends Activity {
     private static final boolean SEND_HOVER = true;
     private static final long NAV_REPEAT_MS = 140;     // Select mode: a held arrow moves focus this often
     private static final long MENU_LONG_MS = 650;      // Menu held this long reloads instead of switching modes
+    private static final int SEEK_S = 10;              // player: Left / Right
+    private static final int SKIP_S = 30;              // player: Rewind / Fast-forward
+    private static final long PLAYING_POLL_MS = 20_000;  // how often to check for playback, to keep the screen on
 
     private static final String VIEWPORT_JS =
             "(function(c){var d=document;d.__cjVp=c;"
@@ -133,6 +140,10 @@ public class MainActivity extends Activity {
     private SharedPreferences prefs;
     private TextView modePill;
     private final Runnable hideModePill = () -> modePill.animate().alpha(0f).setDuration(250).start();
+    private TextView osd;                // player state (play/pause, time) at the bottom
+    private final Runnable hideOsd = () -> osd.animate().alpha(0f).setDuration(300).start();
+    private boolean videoPlaying;        // keeps the screen on; HTML fullscreen video does too
+    private final Runnable pollPlaying = this::pollPlaying;
     private long lastNavAt;
     private long menuDownAt;
     private boolean menuLongDone;
@@ -166,6 +177,12 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.CENTER_HORIZONTAL);
         pillLp.topMargin = (int) (28 * dm.density);
         root.addView(modePill, pillLp);
+        osd = makeModePill(dm.density);
+        osd.setTextSize(20);
+        FrameLayout.LayoutParams osdLp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+        osdLp.bottomMargin = (int) (40 * dm.density);
+        root.addView(osd, osdLp);
         prefs = getSharedPreferences("kiosk", MODE_PRIVATE);
         selectMode = prefs.getBoolean("select_mode", true);
         navJs = readAsset("nav.js");
@@ -282,6 +299,8 @@ public class MainActivity extends Activity {
         @Override
         public void doUpdateVisitedHistory(WebView view, String url, boolean isReload) {
             if (onSite(url)) lastUrl = url;  // also follows SvelteKit's pushState navigations
+            // A new page: the old focus would otherwise stay on whatever was pressed to get here.
+            view.evaluateJavascript("window.__cjNav && __cjNav.reset()", null);
         }
 
         @Override
@@ -349,7 +368,7 @@ public class MainActivity extends Activity {
             customViewCallback = callback;
             fullscreen.addView(view, match());
             fullscreen.setVisibility(View.VISIBLE);
-            getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            updateKeepScreenOn();
         }
 
         @Override
@@ -371,7 +390,7 @@ public class MainActivity extends Activity {
         fullscreen.removeView(customView);
         fullscreen.setVisibility(View.GONE);
         customView = null;
-        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        updateKeepScreenOn();
         WebChromeClient.CustomViewCallback callback = customViewCallback;
         customViewCallback = null;
         if (callback != null) callback.onCustomViewHidden();  // tells the page it left fullscreen
@@ -412,20 +431,23 @@ public class MainActivity extends Activity {
                     if (errorShowing) loadHome(); else setSelectMode(!selectMode);
                 }
                 return true;
+            // Media keys drive the page's video directly in both modes; without one, Space and page scrolling.
             case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
             case KeyEvent.KEYCODE_MEDIA_PLAY:
             case KeyEvent.KEYCODE_MEDIA_PAUSE:
-                if (first) sendKey(KeyEvent.KEYCODE_SPACE);
+                if (first) callNav("media('toggle')", r -> {
+                    if (!showResult(r)) sendKey(KeyEvent.KEYCODE_SPACE);
+                });
                 return true;
             case KeyEvent.KEYCODE_MEDIA_REWIND:
             case KeyEvent.KEYCODE_CHANNEL_UP:
             case KeyEvent.KEYCODE_PAGE_UP:
-                if (pressed) pageScroll(-1, first);
+                if (pressed) skip(-1, first);
                 return true;
             case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD:
             case KeyEvent.KEYCODE_CHANNEL_DOWN:
             case KeyEvent.KEYCODE_PAGE_DOWN:
-                if (pressed) pageScroll(1, first);
+                if (pressed) skip(1, first);
                 return true;
         }
 
@@ -481,28 +503,108 @@ public class MainActivity extends Activity {
     // ---------------------------------------------------------------------------------------------
     // Select mode
 
-    private void nav(String dir) {
-        float k = cssPerPx();
-        web.evaluateJavascript(navJs + String.format(Locale.US, ";__cjNav.move('%s',%.1f,%.1f)",
-                dir, cursor.cursorX() * k, cursor.cursorY() * k), null);
-    }
-
-    /** OK in Select mode: a real tap at the focused element's centre, so it also reaches player iframes. */
-    private void selectTap() {
-        float k = cssPerPx();
-        web.evaluateJavascript(navJs + String.format(Locale.US, ";JSON.stringify(__cjNav.target(%.1f,%.1f))",
-                cursor.cursorX() * k, cursor.cursorY() * k), json -> {
-            // evaluateJavascript hands back a JSON-encoded string: "\"[x,y,innerWidth]\"" or "\"null\"".
-            String v = json == null ? "" : json.replace("\\", "").replace("\"", "").replace("[", "").replace("]", "");
-            String[] parts = v.split(",");
-            if (parts.length != 3) return;
-            try {
-                float scale = web.getWidth() / Float.parseFloat(parts[2]);  // device px per CSS px
-                cursor.moveTo(Float.parseFloat(parts[0]) * scale, Float.parseFloat(parts[1]) * scale);
-                tap();
-            } catch (NumberFormatException ignored) {
+    /**
+     * Calls __cjNav (assets/nav.js) and hands its result object to then (null when it returned none). nav.js is
+     * injected only when the document doesn't have it yet, so a key press costs a one-line call, not a re-parse.
+     */
+    private void callNav(String call, Consumer<JSONObject> then) {
+        web.evaluateJavascript("window.__cjNav ? __cjNav." + call + " : 'NOJS'", v -> {
+            if ("\"NOJS\"".equals(v)) {
+                web.evaluateJavascript(navJs + ";__cjNav." + call, v2 -> then.accept(parse(v2)));
+            } else {
+                then.accept(parse(v));
             }
         });
+    }
+
+    private static JSONObject parse(String json) {
+        if (json == null || !json.startsWith("{")) return null;
+        try {
+            return new JSONObject(json);
+        } catch (JSONException e) {
+            return null;
+        }
+    }
+
+    private void nav(String dir) {
+        float k = cssPerPx();
+        callNav(String.format(Locale.US, "move('%s',%.1f,%.1f)", dir, cursor.cursorX() * k, cursor.cursorY() * k), r -> {
+            if (r == null) return;
+            String act = r.optString("act");
+            if (act.equals("reveal")) {
+                // The site draws its player controls on mouse movement: hover mid-screen, then Up/Down focuses them.
+                cursor.moveTo(root.getWidth() / 2f, root.getHeight() / 2f);
+                hover(MotionEvent.ACTION_HOVER_MOVE);
+                showOsd(r.optString("osd"));
+            } else if (act.equals("osd")) {
+                showOsd(r.optString("osd"));
+            } else if (act.equals("none") && (dir.equals("up") || dir.equals("down"))) {
+                pageScroll(dir.equals("up") ? -1 : 1, true);   // nothing further that way: scroll to find more
+            }
+        });
+    }
+
+    /** OK in Select mode: a real tap at the focused element's centre (it also reaches player iframes), or play/pause. */
+    private void selectTap() {
+        float k = cssPerPx();
+        callNav(String.format(Locale.US, "ok(%.1f,%.1f)", cursor.cursorX() * k, cursor.cursorY() * k), r -> {
+            if (r == null || showResult(r) || !r.optString("act").equals("tap")) return;
+            float scale = web.getWidth() / (float) r.optDouble("w", CSS_WIDTH);   // device px per CSS px
+            cursor.moveTo((float) r.optDouble("x") * scale, (float) r.optDouble("y") * scale);
+            tap();
+        });
+    }
+
+    /** Rewind / Fast-forward: skip in the video, or page up / down where there is none. */
+    private void skip(int dir, boolean first) {
+        long now = SystemClock.uptimeMillis();
+        if (!first && now - lastNavAt < NAV_REPEAT_MS) return;
+        lastNavAt = now;
+        callNav("media('seek'," + dir * SKIP_S + ")", r -> {
+            if (!showResult(r)) pageScroll(dir, first);
+        });
+    }
+
+    /** Shows a player result's text; false when the result was not a player one. */
+    private boolean showResult(JSONObject r) {
+        if (r == null || !r.optString("act").equals("osd")) return false;
+        showOsd(r.optString("osd"));
+        return true;
+    }
+
+    private void showOsd(String text) {
+        if (text == null || text.isEmpty()) return;
+        osd.setText(text);
+        osd.animate().cancel();
+        osd.setAlpha(1f);
+        ui.removeCallbacks(hideOsd);
+        ui.postDelayed(hideOsd, 2200);
+        if (!videoPlaying) pollPlayingSoon();
+    }
+
+    // ---- screen on while a video plays ----------------------------------------------------------
+
+    // The site plays video inside the page (not HTML fullscreen), so nothing would stop the screensaver mid-film.
+    private void pollPlaying() {
+        if (!resumed) return;
+        web.evaluateJavascript("window.__cjNav ? __cjNav.playing() : false", v -> {
+            videoPlaying = "true".equals(v);
+            updateKeepScreenOn();
+        });
+        ui.postDelayed(pollPlaying, PLAYING_POLL_MS);
+    }
+
+    private void pollPlayingSoon() {
+        ui.removeCallbacks(pollPlaying);
+        ui.postDelayed(pollPlaying, 1500);
+    }
+
+    private void updateKeepScreenOn() {
+        if (videoPlaying || customView != null) {
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        } else {
+            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        }
     }
 
     /** CSS px of the page per device px, for handing the cursor's spot to nav.js. */
@@ -515,9 +617,9 @@ public class MainActivity extends Activity {
         prefs.edit().putBoolean("select_mode", on).apply();
         if (on) {
             hideCursor();
-            web.evaluateJavascript(navJs + ";__cjNav.show()", null);
+            callNav("show()", r -> { });
         } else {
-            web.evaluateJavascript(navJs + ";__cjNav.hide()", null);
+            callNav("hide()", r -> { });
             showCursor();
         }
         modePill.setText(on ? "Select  \u00B7  Menu for cursor" : "Cursor  \u00B7  Menu to select");
@@ -768,6 +870,8 @@ public class MainActivity extends Activity {
         resumed = true;
         web.resumeTimers();
         web.onResume();
+        ui.removeCallbacks(pollPlaying);
+        ui.post(pollPlaying);
         hideSystemUi();
         // Back online while the offline page is up: retry by itself. Fires once at once if a network exists.
         networkCallback = new ConnectivityManager.NetworkCallback() {
@@ -788,6 +892,7 @@ public class MainActivity extends Activity {
         resumed = false;
         stopHold();
         ui.removeCallbacks(hideCursor);
+        ui.removeCallbacks(pollPlaying);
         if (networkCallback != null) {
             try {
                 connectivity.unregisterNetworkCallback(networkCallback);
